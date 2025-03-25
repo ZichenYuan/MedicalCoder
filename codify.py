@@ -29,16 +29,16 @@ class Codify:
 
         self.icd_database = RAGPretrainedModel.from_index('.ragatouille/colbert/indexes/icd10_index')
 
-        self.simple_rerank_agent = Agent(response_model=DiagnosisRanking,
-                                       ai_provider="groq_client",
-                                       model="llama-3.1-8b-instant")
-        self.rerank_agent = Agent(response_model=DiagnosisRanking,
-                                       ai_provider="openai_client",
-                                        model="text-davinci-003")
+        self.simple_rerank_agent = Agent(ai_provider="groq_client",
+                                       model="llama-3.1-8b-instant",
+                                       max_token=4000)
+        # self.rerank_agent = Agent(response_model=DiagnosisRanking,
+        #                                ai_provider="openai_client",
+        #                                 model="text-davinci-003")
 
-        self.control_group_agent = Agent(response_model=ControlGroupOutput,
-                                       ai_provider="groq_client",
-                                       model="llama-3.1-8b-instant")
+        # self.control_group_agent = Agent(response_model=ControlGroupOutput,
+        #                                ai_provider="groq_client",
+        #                                model="llama-3.1-8b-instant")
 
 
     # def simple_top_k_rerank(self, k: int, query:str, icd_references: List[Dict]):
@@ -188,7 +188,7 @@ class Codify:
         ranked_codes = self.top_k_rerank_with_evidence(k, query, evidence, icd_references)
         return ranked_codes
 
-    def get_control_group_output(self, query: str):
-        system_prompt = "You are a medical coding expert that can suggest a control group for a given query. ICD-10-CM code"
-        response = self.simple_rerank_agent.inference(system_prompt, query)
-        return response
+    # def get_control_group_output(self, query: str):
+    #     system_prompt = "You are a medical coding expert that can suggest a control group for a given query. ICD-10-CM code"
+    #     response = self.simple_rerank_agent.inference(system_prompt, query)
+    #     return response

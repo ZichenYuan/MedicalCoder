@@ -72,9 +72,7 @@ def run_experiment(csv_file_path):
         ids.append(previous_id)
 
     length = len(descriptions)
-    # print(descriptions[0])
-    # print(f'length:{length}')
-    # for description in descriptions:
+    
     for i in range(length):
         description = descriptions[i]
 
@@ -83,8 +81,11 @@ def run_experiment(csv_file_path):
         answer_code_str = codes_list[i]
         answer_code_lst = answer_code_str.split(',')
 
-        baseline_pred_code_ls, _ = baseline_k_predict(description, len(answer_code_lst))
-        dia, evi = extract_k_key_points(description, len(answer_code_lst))
+        baseline_response = baseline_k_predict(description, len(answer_code_lst))
+        pipeline_response = extract_k_key_points(description, len(answer_code_lst))
+
+        baseline_pred_code_ls, _ = baseline_response
+        dia, _ = pipeline_response #diagnosis from extract agent
         print(f'query:{dia}')
         for j in range(len(dia)):
             result1 = codify.get_ranked_top_k_icd_codes(1, dia[j])
