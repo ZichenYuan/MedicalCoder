@@ -1,23 +1,14 @@
-# Using GPT-3.5 as baseline to autocode ICD9 codes
-
-# note: use langchain_openai to avoid exceeding maximum allowed tokens
+# old version of baseline_gpt.py
+# fail beacuse of exceeding maximum token
 
 from codify import Codify
-from config import groq_client, openai_client
-import os
-import openai
 from langchain_openai import ChatOpenAI
+from agent import Agent, ExtractModel
+from pydantic import BaseModel
 
-
-# Set your OpenAI API key
-openai.api_key = os.environ["OPENAI_API_KEY"]
 
 def extract_key_points(query: str):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo",
-                      temperature=0,
-                        max_tokens=300,
-                        timeout=None,
-                        max_retries=2)
+    llm = Agent(ai_provider="openai_client", model="gpt-3.5-turbo", max_token=300, response_model=ExtractModel)
     
     system_prompt = f"""
     You are a medical expert that can extract key points from a clinical query.
@@ -29,29 +20,15 @@ def extract_key_points(query: str):
     ["code1", "code2", "code3", "code4", "code5"...]
     ["evidence1", "evidence2", "evidence3", "evidence4", "evidence5"...]
     Do not return any other information.
-
+    """
+    context = f"""
     query: {query}
     """
-    # context = f"""
-    # query: {query}
-    # """
-    
-    # Make the LangChain API call
-    response = llm.predict(system_prompt)
-    print("here")
-    decisions = response.strip('/n').split('\n')
-    diagonosis = decisions[0].strip('[').strip(']').split(',')
-    evidence = decisions[1].strip('[').strip(']').split(',')
-    print(diagonosis)
-    print(evidence)
-    return diagonosis,evidence
+    response = llm.inference(context, system_prompt)
+    return response
 
 def baseline_k_predict(query: str, k:int):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo",
-                      temperature=0,
-                        max_tokens=300,
-                        timeout=None,
-                        max_retries=2)
+    llm = Agent(ai_provider="openai_client", model="gpt-3.5-turbo", max_token=300, response_model=ExtractModel)
     
     system_prompt = f"""
     You are a medical expert that can extract precise diagnosis from clinical notes.
@@ -65,23 +42,12 @@ def baseline_k_predict(query: str, k:int):
     Do not return any other information.
     query: {query}
     """
-    # context = f"""
-    # query: {query}
-    # """
-    
-    # Make the LangChain API call
-    response = llm.predict(system_prompt)
-    decisions = response.strip('/n').split('\n')
-    codes = decisions[0].strip('[').strip(']').split(',')
-    evidence = decisions[1].strip('[').strip(']').split(',')
-    # print(codes)
-    # print(evidence)
+    context = f"""
+    query: {query}
+    """
 
-    # get rid of quotation marks and dots
-    cleaned_codes = [code.strip().replace('"', '').replace('.', '') for code in codes]
-
-    return cleaned_codes,evidence
-
+    response = llm.inference(context, system_prompt)
+    return response
 
 
 # codes, evidence = baseline_k_predict(clinical_notes, 5)

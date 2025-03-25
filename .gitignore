@@ -1,3 +1,8 @@
 .env
 .env.example
 *.csv
+log.txt
+__pycache__/agent.cpython-311.pyc
+__pycache__/baseline_gpt.cpython-311.pyc
+__pycache__/codify.cpython-311.pyc
+__pycache__/utils.cpython-311.pyc
