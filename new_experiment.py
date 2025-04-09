@@ -69,7 +69,7 @@ def run_experiment(descriptions, codes_list):
         pipeline1_pred_code_ls = get_pipeline1_result(llm,description, len(answer_code_lst), codify)
 
         #pipeline 2
-        multi_agent_icd9 = MultiAgentICD9(llm, 9)
+        multi_agent_icd9 = MultiAgentICD9(llm, len(answer_code_lst))
         queries = multi_agent_icd9.execute_task(description)
         print(f'queries2:{queries}')
         pipeline2_pred_code_ls = []
