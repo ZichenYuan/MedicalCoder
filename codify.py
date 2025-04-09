@@ -168,6 +168,7 @@ class Codify:
     def get_ranked_top_k_icd_codes(self, k: int, query: str):
         # Get ICD code references
         icd_references = self.get_icd_code(query)
+        # print('@@@@@@@@@@@@@@@@@@@@@@@@@', icd_references)
         documents = [Document(text=doc["content"], metadata=doc["document_metadata"], doc_id=doc["document_id"]) for doc in icd_references[:2]]
         # docs = Reranker.rank(query, docs=documents)
         # print('@@@@@@@@@@@@@@@@@@@@@@@@@', json.dumps(icd_references, indent=2))
