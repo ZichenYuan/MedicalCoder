@@ -20,7 +20,7 @@ def code_match(true_code, predicted_code):
 # extract k diagnosis descriptions from clinical notes and extract k codes
 def get_pipeline1_result(llm, description, k, codify):
     dia, _ = gpt4_extract_k_diagnosis(llm, description, k)
-    print(f'queries:{dia}')
+    print(f'queries1:{dia}')
     codes = []
     for j in range(len(dia)):
         result1 = codify.get_ranked_top_k_icd_codes(1, dia[j])
@@ -70,15 +70,14 @@ def run_experiment(descriptions, codes_list):
 
         #pipeline 2
         multi_agent_icd9 = MultiAgentICD9(llm, 9)
-        unformatted_queries = multi_agent_icd9.execute_task(description)
-        queries = unformatted_queries.strip('[').strip(']').split(',')
+        queries = multi_agent_icd9.execute_task(description)
+        print(f'queries2:{queries}')
         pipeline2_pred_code_ls = []
         for query in queries:
             result1 = codify.get_ranked_top_k_icd_codes(1, query)
             code = get_codes(result1)
             if code:
                 pipeline2_pred_code_ls.append(code[0])
-
 
         baseline_hit_rate = calculate_hit_rate(baseline_pred_code_ls, answer_code_lst)
         pipeline1_hit_rate = calculate_hit_rate(pipeline1_pred_code_ls, answer_code_lst)

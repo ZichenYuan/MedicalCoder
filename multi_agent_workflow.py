@@ -1,5 +1,4 @@
-# This is a multi-agent system that uses a series of agents to assign ICD-9-CM codes to a clinical note.
-
+# This is a multi-agent system that uses a series of agents to extract key diagnosis from clinical notes.
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
@@ -76,13 +75,11 @@ class SummaryAgent:
         self.prompt = PromptTemplate(
             input_variables=["classified_entities"],
             template="""
-            You are a medical expert that can diagnose the patient based on given information. Extract diagnosis from the given information based on ICD-9-CM coding paradigm. 
+            You are a medical expert that can diagnose the patient based on given information. Extract specificdiagnosis from the given information. 
             The response should be a list of {k} diagnosis. Do not return any other information.
 
             The response should be in the following format:
-            {{
-                ["Actinic reticuloid and actinic granuloma", "Anal sphincter tear complicating delivery, not associated with third-degree perineal laceration, unspecified as to episode of care or not applicable", ...]
-            }}
+            ["Actinic reticuloid and actinic granuloma", "Anal sphincter tear complicating delivery, not associated with third-degree perineal laceration, unspecified as to episode of care or not applicable", ...]
 
             Classified Entities: {classified_entities}
             """
@@ -95,68 +92,6 @@ class SummaryAgent:
             "k": self.k
         }
         return self.chain.run(formatted_input)
-
-# class SpecificityAgent:
-#     def __init__(self, llm):
-#         self.llm = llm
-#         self.prompt = PromptTemplate(
-#             input_variables=["classified_entities"],
-#             template="""
-#             Determine the most specific ICD-9-CM codes in each entity. Output all the relevant codes in a list.
-#             Classified Entities: {classified_entities}
-#             """
-#         )
-#         self.chain = LLMChain(llm=self.llm, prompt=self.prompt)
-
-#     def specify(self, classified_entities):
-#         return self.chain.run(classified_entities)
-
-# class RerankingAgent:
-#     def __init__(self, llm, k=5):
-#         self.llm = llm
-#         self.k = k
-#         self.prompt = PromptTemplate(
-#             input_variables=["codes"],
-#             template="""
-#             ICD-9-CM Codes: {codes}
-#             You are a medical coding expert that can rerank ICD-9-CM diagnosis codes based on their relevance to a query and a list of ICD-9-CM references.
-#             You must return only the top {k} ICD-9-CM codes.
-#             You must return the passage that lead to the most relevant ICD-9-CM codes from the query.
-#             Do not include your resoning in your response, just return the ICD-9-CM code and the content of the ICD-9-CM reference.
-#             The response should be in the following format:
-#             {{
-#                 "codes": ["41001", "5589", ...],
-#                 "descriptions": ["Acute myocardial infarction", "Infectious gastroenteritis and colitis, unspecified", ...],
-#                 "keywords": ["passage1", "passage2", "passage3"]
-#             }}
-#             Do not return any other information.
-#             """
-#         )
-#         self.chain = LLMChain(llm=self.llm, prompt=self.prompt)
-
-#     def rerank(self, codes):
-#         # Format the input with both codes and k
-#         formatted_input = {
-#             "codes": codes,
-#             "k": self.k
-#         }
-#         return self.chain.run(formatted_input)
-
-# class ValidationAgent:
-#     def __init__(self, llm):
-#         self.llm = llm
-#         self.prompt = PromptTemplate(
-#             input_variables=["final_codes"],
-#             template="""
-#             Final ICD-9-CM Codes: {final_codes}
-
-#             Validate these codes based on ICD-9-CM coding standards. Provide a rationale for each code.
-#             """
-#         )
-#         self.chain = LLMChain(llm=self.llm, prompt=self.prompt)
-
-#     def validate(self, final_codes):
-#         return self.chain.run(final_codes)
 
 class MultiAgentICD9:
     def __init__(self, llm, k=5):
@@ -179,25 +114,40 @@ class MultiAgentICD9:
         self.coordinator_chain = LLMChain(llm=self.llm, prompt=self.coordinator_prompt)
 
     def execute_task(self, raw_notes):
-        task_description = "Assign ICD-9-CM codes to this unstructured patient record."
-        plan = self.coordinator_chain.run(task_description)
+        k = self.k
+        task_description = f"""You are a medical expert that can extract key diagnosis from clinical notes written by different people for the same patient.
+        You should follow these steps:
+        1. Clean the clinical notes
+        2. Classify the medical entities
+        3. Summarize the medical entities and extract the key diagnosis
 
+        The response should be a list of diagnosis in one sentence. Length of the listshould be equal to {k}."""
+        
+        plan = self.coordinator_chain.run(task_description)
         cleaned_text = self.cleaner.clean(raw_notes)
         classified_entities = self.classifier.classify(cleaned_text)
         queries = self.summary.summarize(classified_entities)
+        
+        try:
+            formated_queries = queries.strip('/n').strip('[').strip(']').split(',')
+            cleaned_queries = [q.strip().replace('"', '').replace('.', '') for q in formated_queries]
+            print(f'formated_queries:{cleaned_queries}')
+        except:
+            # queries = self.summary.summarize(classified_entities)
+            print(f'queries:{queries}')
+        # remove the first and last character of queries
+
         # specific_codes = self.specificity.specify(classified_entities)
         # ranked_results = self.reranker.rerank(specific_codes)
 
-        print(f'queries:{type(queries)}')
-
-
+        # return formated_queries
 
 
         return {
             "plan": plan.strip(),
             "cleaned_text": cleaned_text.strip(),
             "classified_entities": classified_entities.strip(),
-            "summary_sentence": queries.strip(),
+            "summary_sentence": cleaned_queries,
             # "specific_codes": specific_codes.strip(),
             # "ranked_results": ranked_results.strip()
         }
@@ -242,10 +192,6 @@ def main():
     print(result["classified_entities"])
     print("\nSummary Sentence:")
     print(result["summary_sentence"])
-    # print("\nSpecific ICD-9 Codes:")
-    # print(result["specific_codes"])
-    # print("\nRanked Results:")
-    # print(result["ranked_results"])
     print("\n=====================================")
     
     print(f'Answer code:{codes_list[0]}')
