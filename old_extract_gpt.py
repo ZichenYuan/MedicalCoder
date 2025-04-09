@@ -13,7 +13,7 @@ def extract_key_points(query: str):
     The response should be a list of diagnosis and a list of evidence. Length of both lists should be equal and at least 5.
     Example:
     ["diagnosis1", "diagnosis2", "diagnosis3", "diagnosis4", "diagnosis5"]
-    ["evidence1", "evidence2", "evidence3", "evidence4", "evidence5"]
+    ["evidence1", "evidence2", "evidence3", "evidence4", "evidence5"]wo
     Do not return any other information.
     """
     context = f"""
@@ -28,7 +28,7 @@ def extract_k_key_points(query: str, k:int):
     llm = Agent(ai_provider="openai_client", model="gpt-3.5-turbo", max_token=300, response_model=ExtractModel)
     
     system_prompt = f"""
-    You are a medical expert that can extract key points from a clinical query.
+    You are a medical expert that can extract precise diagnosis from a clinical query.
     You will be given clinical notes written by different people for the same patient.
     You must extract the key diagonsis from the notes based on ICD-9 paradigm and give your supporting evidence.
     There might be typos and format errors in clinical notes.
@@ -44,7 +44,6 @@ def extract_k_key_points(query: str, k:int):
     
     response = llm.inference(context, system_prompt)
     return response
-
 # clinical_text = """
 # Patient has a history of Type 2 Diabetes Mellitus, diagnosed 5 years ago. Currently taking Metformin 500mg BID.
 # Reports episodes of hypertension and high blood pressure, recently prescribed Lisinopril 10mg daily.

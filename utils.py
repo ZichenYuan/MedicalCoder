@@ -1,5 +1,9 @@
 import json
 import re
+import time
+import tiktoken
+import random
+import csv  
 
 def fix_malformed_json(json_str):
     # Fix list with key-value pair → convert to dict
@@ -110,3 +114,69 @@ def calculate_hit_rate(code_pred_ls:list, answer_code_ls: list):
         if code in answer_code_ls:
             hit_rate += 1
     return hit_rate/len(answer_code_ls)
+
+
+def count_tokens(text: str) -> int:
+    """Count the number of tokens in a text string."""
+    encoding = tiktoken.encoding_for_model("gpt-4")
+    return len(encoding.encode(text))
+
+def truncate_text(text: str, max_tokens: int = 6000) -> str:
+    """Truncate text to fit within token limit."""
+    encoding = tiktoken.encoding_for_model("gpt-4")
+    tokens = encoding.encode(text)
+    if len(tokens) <= max_tokens:
+        return text
+    return encoding.decode(tokens[:max_tokens])
+
+
+
+
+def get_random_sample(csv_file_path, num_samples=10):
+    descriptions = []
+    codes_list = []
+    document_metadatas = []
+    ids = []
+
+    while len(descriptions) < num_samples:
+        # Reset for new sample
+        concatenated_description = ""
+        current_id = None
+        current_codes = None
+        
+        with open(csv_file_path, 'r', newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            
+            # Get random starting point
+            rows = list(reader)
+            start_idx = random.randint(0, len(rows)-1)
+            current_row = rows[start_idx]
+            
+            # Process first row of sample
+            description = current_row['text'].strip()
+            codes = current_row['dia_code'].strip()
+            current_id = current_row['subject_id'].strip()
+            
+            if description and codes:
+                concatenated_description = description
+                current_codes = codes
+                
+                # Look at subsequent rows
+                for row in rows[start_idx+1:]:
+                    next_id = row['subject_id'].strip()
+                    next_description = row['text'].strip()
+                    
+                    # If same ID, concatenate description
+                    if next_id == current_id:
+                        concatenated_description += " " + next_description
+                    else:
+                        break
+                        
+                # Add completed sample
+                descriptions.append(concatenated_description)
+                # print(f'description:{descriptions[-1]}')
+                codes_list.append(current_codes)
+                document_metadatas.append({"type": "ICD-9", "code": current_codes})
+                ids.append(current_id)
+
+    return descriptions, codes_list, document_metadatas, ids
