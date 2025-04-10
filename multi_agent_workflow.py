@@ -75,7 +75,7 @@ class SummaryAgent:
         self.prompt = PromptTemplate(
             input_variables=["classified_entities"],
             template="""
-            You are a medical expert that can diagnose the patient based on given information. Extract specificdiagnosis from the given information. 
+            You are a medical expert that can diagnose the patient based on given information. Extract specific diagnosis from the given information. 
             The response should be a list of {k} diagnosis. Do not return any other information.
 
             The response should be in the following format:
@@ -140,17 +140,17 @@ class MultiAgentICD9:
         # specific_codes = self.specificity.specify(classified_entities)
         # ranked_results = self.reranker.rerank(specific_codes)
 
-        # return formated_queries
+        return formated_queries
 
 
-        return {
-            "plan": plan.strip(),
-            "cleaned_text": cleaned_text.strip(),
-            "classified_entities": classified_entities.strip(),
-            "summary_sentence": cleaned_queries,
-            # "specific_codes": specific_codes.strip(),
-            # "ranked_results": ranked_results.strip()
-        }
+        # return {
+        #     "plan": plan.strip(),
+        #     "cleaned_text": cleaned_text.strip(),
+        #     "classified_entities": classified_entities.strip(),
+        #     "summary_sentence": cleaned_queries,
+        #     # "specific_codes": specific_codes.strip(),
+        #     # "ranked_results": ranked_results.strip()
+        # }
         
 
 def main():
