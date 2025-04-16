@@ -10,6 +10,8 @@ import pandas as pd
 from tqdm import tqdm
 import os
 import json
+import pickle
+from utils import get_random_sample
 
 class ICDDataset(Dataset):
     def __init__(self, texts, labels, tokenizer, max_length=512):
@@ -107,8 +109,19 @@ def load_code_mapping(codes_list, mapping_file='icd_code_mapping.json', cms_file
         
 def load_and_preprocess_data(pickle_file, mapping_file='icd_code_mapping.json', cms_file_path='ICD-9-CM-v32-master-descriptions/CMS32_DESC_LONG_DX.txt'):
     """Load and preprocess the data from pickle file."""
-    with open(pickle_file, 'rb') as f:
-        descriptions, codes_list, document_metadatas, ids = pickle.load(f)
+    try:
+        with open(pickle_file, 'rb') as f:
+            descriptions, codes_list, document_metadatas, ids = pickle.load(f)
+            print("Loaded existing random samples")
+    except:
+        # If file doesn't exist or can't be read, generate new samples
+        print("Generating new random samples from mimic3_full.csv...")
+        descriptions, codes_list, document_metadatas, ids = get_random_sample("mimic3_full.csv", 10000)
+        
+        # Save the samples
+        with open(pickle_file, 'wb') as f:
+            pickle.dump((descriptions, codes_list, document_metadatas, ids), f)
+            print("Saved random samples to file")
     
     # Load or create code mapping
     # if create_mapping:
@@ -249,7 +262,7 @@ def main():
     # Load and preprocess data
     print("Loading and preprocessing data...")
     texts, labels, unique_codes, code_to_idx = load_and_preprocess_data(
-        'random_samples.pkl', 
+        'large_random_samples.pkl', 
         create_mapping=True,
         cms_file_path='ICD-9-CM-v32-master-descriptions/CMS32_DESC_LONG_DX.txt'
     )

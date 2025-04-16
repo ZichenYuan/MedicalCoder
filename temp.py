@@ -26,17 +26,37 @@
 #     code3 = get_codes(result3)
 #     print(f'code3:{code3}')
 
-import pickle
+# import pickle
+
+# csv_file_path = "mimic3_full.csv"
+# # Try to load existing samples from file
+# sample_file = "random_samples.pkl"
+
+# with open(sample_file, 'rb') as f:
+#     descriptions, codes_list, document_metadatas, ids = pickle.load(f)
+#     print("Loaded existing random samples")
+
+# clinical_notes = descriptions[4]
+
+# print(clinical_notes)
+# print(codes_list[4])
+
+
+#--------------------------------
+# check dataset size
+import csv
 
 csv_file_path = "mimic3_full.csv"
-# Try to load existing samples from file
-sample_file = "random_samples.pkl"
+unique_subject_ids = set()
+with open(csv_file_path, 'r', newline='', encoding='utf-8') as csvfile:
+    reader = csv.DictReader(csvfile)
+    sum = 0
+    for row in reader:
+        sum += 1
+        unique_subject_ids.add(row['subject_id'])
+    sum -= 1
 
-with open(sample_file, 'rb') as f:
-    descriptions, codes_list, document_metadatas, ids = pickle.load(f)
-    print("Loaded existing random samples")
+unique_subject_id_count = len(unique_subject_ids)
 
-clinical_notes = descriptions[4]
-
-print(clinical_notes)
-print(codes_list[4])
+print(f'Total number of rows in {csv_file_path}: {sum}')
+print(f'Total number of unique subject ids: {unique_subject_id_count}')
