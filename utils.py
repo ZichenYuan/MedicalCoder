@@ -132,11 +132,12 @@ def truncate_text(text: str, max_tokens: int = 6000) -> str:
 
 
 
-def get_random_sample(csv_file_path, num_samples=10):
+def get_random_sample(csv_file_path, num_samples):
     descriptions = []
     codes_list = []
     document_metadatas = []
     ids = []
+    sampled_ids = set() # Keep track of sampled subject IDs
 
     while len(descriptions) < num_samples:
         # Reset for new sample
@@ -156,6 +157,12 @@ def get_random_sample(csv_file_path, num_samples=10):
             description = current_row['text'].strip()
             codes = current_row['dia_code'].strip()
             current_id = current_row['subject_id'].strip()
+
+            # Check if this ID has already been sampled
+            if current_id in sampled_ids:
+                continue
+            else:
+                sampled_ids.add(current_id)
             
             if description and codes:
                 concatenated_description = description
