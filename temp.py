@@ -40,11 +40,26 @@
 
 # print(clinical_notes)
 # print(codes_list[4])
+import torch
+import csv
+print("here")
+
+def check_cuda():
+    if torch.cuda.is_available():
+        print("CUDA is available!")
+        print(f"Device count: {torch.cuda.device_count()}")
+        print(f"Current device: {torch.cuda.current_device()}")
+        print(f"Device name: {torch.cuda.get_device_name(torch.cuda.current_device())}")
+    else:
+        print("CUDA is NOT available.")
+
+check_cuda()
+
 
 
 #--------------------------------
 # check dataset size
-import csv
+
 
 csv_file_path = "mimic3_full.csv"
 unique_subject_ids = set()

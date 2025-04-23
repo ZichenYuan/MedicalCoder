@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from transformers import BertTokenizer, BertModel
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 from torch.utils.data import Dataset, DataLoader
 import pickle
 import numpy as np
@@ -12,6 +13,10 @@ import os
 import json
 import pickle
 from utils import get_random_sample
+
+# Set the cache directory for transformers
+os.environ['TRANSFORMERS_CACHE'] = '/project/tantra/y.zichen/hf_cache'
+
 
 class ICDDataset(Dataset):
     def __init__(self, texts, labels, tokenizer, max_length=512):
@@ -40,13 +45,17 @@ class ICDDataset(Dataset):
         return {
             'input_ids': encoding['input_ids'].flatten(),
             'attention_mask': encoding['attention_mask'].flatten(),
-            'labels': torch.tensor(label, dtype=torch.long)
+            'labels': torch.tensor(label, dtype=torch.float)
         }
 
 class BertICDPredictor(nn.Module):
     def __init__(self, n_classes, bert_model_name='bert-base-uncased'):
         super(BertICDPredictor, self).__init__()
-        self.bert = BertModel.from_pretrained(bert_model_name)
+        # tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
+        # model = AutoModelForMaskedLM.from_pretrained(bert_model_name)
+        model = BertModel.from_pretrained(bert_model_name, cache_dir=os.environ['TRANSFORMERS_CACHE'])
+        # self.bert = BertModel.from_pretrained(bert_model_name, from_tf = True)
+        self.bert = model
         self.drop = nn.Dropout(p=0.3)
         self.fc = nn.Linear(self.bert.config.hidden_size, n_classes)
 
@@ -62,13 +71,23 @@ class BertICDPredictor(nn.Module):
 def load_all_icd_codes(cms_file_path='ICD-9-CM-v32-master-descriptions/CMS32_DESC_LONG_DX.txt'):
     """Load all potential ICD codes from the CMS file."""
     all_codes = []
-    with open(cms_file_path, 'r') as f:
-        for line in f:
-            # Split by whitespace and take the first part as the code
-            parts = line.strip().split()
-            if parts:
-                code = parts[0]
-                all_codes.append(code)
+    try:
+        with open(cms_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                # Split by whitespace and take the first part as the code
+                parts = line.strip().split()
+                if parts:
+                    code = parts[0]
+                    all_codes.append(code)
+    except UnicodeDecodeError:
+        print("UnicodeDecodeError encountered. Retrying with 'latin1' encoding.")
+        with open(cms_file_path, 'r', encoding='latin1') as f:
+            for line in f:
+                parts = line.strip().split()
+                if parts:
+                    code = parts[0]
+                    print(code)
+                    all_codes.append(code)
     return all_codes
 
 def create_code_mapping(codes_list, mapping_file='icd_code_mapping.json', cms_file_path='ICD-9-CM-v32-master-descriptions/CMS32_DESC_LONG_DX.txt'):
@@ -116,7 +135,7 @@ def load_and_preprocess_data(pickle_file, mapping_file='icd_code_mapping.json', 
     except:
         # If file doesn't exist or can't be read, generate new samples
         print("Generating new random samples from mimic3_full.csv...")
-        descriptions, codes_list, document_metadatas, ids = get_random_sample("mimic3_full.csv", 10000)
+        descriptions, codes_list, document_metadatas, ids = get_random_sample("mimic3_full.csv", 100)
         
         # Save the samples
         with open(pickle_file, 'wb') as f:
@@ -249,8 +268,11 @@ def predict_icd_codes(model, tokenizer, text, code_to_idx, device, threshold=0.5
     # Convert predictions to ICD codes
     predicted_codes = []
     for code, idx in code_to_idx.items():
-        if preds[idx] == 1:
-            predicted_codes.append(code)
+        if idx >= len(preds):
+            print(f"Warning: Index {idx} out of bounds for predictions array.")
+        else:
+            if preds[idx] == 1:  
+                predicted_codes.append(code)
     
     return predicted_codes
 
@@ -261,11 +283,7 @@ def main():
     
     # Load and preprocess data
     print("Loading and preprocessing data...")
-    texts, labels, unique_codes, code_to_idx = load_and_preprocess_data(
-        'large_random_samples.pkl', 
-        create_mapping=True,
-        cms_file_path='ICD-9-CM-v32-master-descriptions/CMS32_DESC_LONG_DX.txt'
-    )
+    texts, labels, unique_codes, code_to_idx = load_and_preprocess_data('large_random_samples.pkl')
     
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(
@@ -276,8 +294,8 @@ def main():
     )
     
     # Initialize tokenizer
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir=os.environ['TRANSFORMERS_CACHE'])
+
     # Create datasets
     train_dataset = ICDDataset(X_train, y_train, tokenizer)
     val_dataset = ICDDataset(X_val, y_val, tokenizer)
@@ -309,4 +327,4 @@ def main():
     print(f"Predicted ICD codes: {predicted_codes}")
 
 if __name__ == "__main__":
-    main() 
+    main()
