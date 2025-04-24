@@ -6,13 +6,22 @@ from torch.utils.data import Dataset, DataLoader
 import pickle
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 import pandas as pd
 from tqdm import tqdm
 import os
 import json
 import pickle
 from utils import get_random_sample
+import logging
+
+# Configure logging
+logging.basicConfig(
+    filename='log.txt',
+    filemode='a',
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 # Set the cache directory for transformers
 os.environ['TRANSFORMERS_CACHE'] = '/project/tantra/y.zichen/hf_cache'
@@ -131,25 +140,18 @@ def load_and_preprocess_data(pickle_file, mapping_file='icd_code_mapping.json', 
     try:
         with open(pickle_file, 'rb') as f:
             descriptions, codes_list, document_metadatas, ids = pickle.load(f)
-            print("Loaded existing random samples")
+            logging.info("Loaded existing random samples")
     except:
         # If file doesn't exist or can't be read, generate new samples
-        print("Generating new random samples from mimic3_full.csv...")
+        logging.info("Generating new random samples from mimic3_full.csv...")
         descriptions, codes_list, document_metadatas, ids = get_random_sample("mimic3_full.csv", 100)
         
         # Save the samples
         with open(pickle_file, 'wb') as f:
             pickle.dump((descriptions, codes_list, document_metadatas, ids), f)
-            print("Saved random samples to file")
+            logging.info("Saved random samples to file")
     
     # Load or create code mapping
-    # if create_mapping:
-    #     code_to_idx = create_code_mapping(codes_list, mapping_file, cms_file_path)
-    # else:
-    #     code_to_idx = load_code_mapping(mapping_file)
-    #     if code_to_idx is None:
-    #         raise ValueError(f"Mapping file {mapping_file} not found. Set create_mapping=True to create it.")
-
     code_to_idx = load_code_mapping(codes_list, mapping_file, cms_file_path)
     
     # Get the number of all unique ICM-9 codes
@@ -214,8 +216,8 @@ def train_model(model, train_loader, val_loader, device, num_epochs=5):
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), 'best_bert_icd_model.pth')
 
-def evaluate_model(model, test_loader, device, unique_codes):
-    """Evaluate the model on test data."""
+def evaluate_model_per_sample(model, test_loader, device):
+    """Evaluate the model on test data, calculating metrics for each sample."""
     model.eval()
     all_preds = []
     all_labels = []
@@ -235,13 +237,30 @@ def evaluate_model(model, test_loader, device, unique_codes):
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
     
-    # Calculate metrics for each ICD code
-    for i, code in enumerate(unique_codes):
-        print(f"\nMetrics for ICD code: {code}")
-        print(classification_report(all_labels[:, i], all_preds[:, i]))
+    # Calculate metrics for each sample
+    for idx, (true_labels, predicted_labels) in enumerate(zip(all_labels, all_preds)):
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision = precision_score(true_labels, predicted_labels, zero_division=0)
+        recall = recall_score(true_labels, predicted_labels, zero_division=0)
+        f1 = f1_score(true_labels, predicted_labels, zero_division=0)
+        
+        # Calculate hit rate
+        hits = np.sum(np.logical_and(predicted_labels, true_labels))
+        predicted_count = np.sum(predicted_labels)
+        actual_count = np.sum(true_labels)
+        hit_rate = hits / predicted_count if predicted_count > 0 else 0
+        
+        logging.info(f"\nMetrics for Sample {idx + 1}:")
+        logging.info(f"Accuracy: {accuracy:.2f}")
+        logging.info(f"Precision: {precision:.2f}")
+        logging.info(f"Recall: {recall:.2f}")
+        logging.info(f"F1 Score: {f1:.2f}")
+        logging.info(f"Hit Rate: {hit_rate:.2f}")
+        logging.info(f"Number of Predicted Labels: {predicted_count}")
+        logging.info(f"Number of Actual Labels: {actual_count}")
 
-def predict_icd_codes(model, tokenizer, text, code_to_idx, device, threshold=0.5):
-    """Predict ICD codes for a new text."""
+def predict_icd_codes(model, tokenizer, text, code_to_idx, device, k=5, threshold=0.5):
+    """Predict the top k ICD codes for a new text."""
     model.eval()
     
     # Tokenize the text
@@ -262,27 +281,24 @@ def predict_icd_codes(model, tokenizer, text, code_to_idx, device, threshold=0.5
     # Get predictions
     with torch.no_grad():
         outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-        probs = torch.sigmoid(outputs)
-        preds = (probs > threshold).cpu().numpy()[0]
+        probs = torch.sigmoid(outputs).cpu().numpy()[0]
+    
+    # Get the indices of the top k probabilities
+    top_k_indices = probs.argsort()[-k:][::-1]
     
     # Convert predictions to ICD codes
-    predicted_codes = []
-    for code, idx in code_to_idx.items():
-        if idx >= len(preds):
-            print(f"Warning: Index {idx} out of bounds for predictions array.")
-        else:
-            if preds[idx] == 1:  
-                predicted_codes.append(code)
-    
+    idx_to_code = {idx: code for code, idx in code_to_idx.items()}
+    predicted_codes = [idx_to_code[idx] for idx in top_k_indices if probs[idx] > threshold]
+    logging.info(f"Predicted ICD Codes: {predicted_codes}")
     return predicted_codes
 
 def main():
     # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    logging.info(f"Using device: {device}")
     
     # Load and preprocess data
-    print("Loading and preprocessing data...")
+    logging.info("Loading and preprocessing data...")
     texts, labels, unique_codes, code_to_idx = load_and_preprocess_data('large_random_samples.pkl')
     
     # Split data
@@ -311,20 +327,23 @@ def main():
     model = model.to(device)
     
     # Train model
-    print("Training model...")
+    logging.info("Training model...")
     train_model(model, train_loader, val_loader, device)
     
     # Load best model and evaluate
-    print("Evaluating model...")
+    logging.info("Evaluating model...")
     model.load_state_dict(torch.load('best_bert_icd_model.pth'))
-    evaluate_model(model, test_loader, device, unique_codes)
+    evaluate_model_per_sample(model, test_loader, device)
     
-    # Example of predicting ICD codes for a new text
-    print("\nExample prediction:")
-    sample_text = "Patient presents with type 2 diabetes mellitus and hypertension."
-    predicted_codes = predict_icd_codes(model, tokenizer, sample_text, code_to_idx, device)
-    print(f"Text: {sample_text}")
-    print(f"Predicted ICD codes: {predicted_codes}")
+    # Example of predicting ICD codes for a new text, using the 4th sample in the test set
+    logging.info("\nExample prediction:")
+    sample_file = "random_samples.pkl"
+    with open(sample_file, 'rb') as f:
+        descriptions, codes_list, document_metadatas, ids = pickle.load(f)
+    clinical_notes = descriptions[4]
+    predicted_codes = predict_icd_codes(model, tokenizer, clinical_notes, code_to_idx, device)
+    logging.info(f"Predicted ICD codes: {predicted_codes}")
+    logging.info(f"True ICD codes: {codes_list[4]}")
 
 if __name__ == "__main__":
     main()
